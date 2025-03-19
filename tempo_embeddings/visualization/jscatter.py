@@ -317,11 +317,26 @@ class JScatterVisualizer:
             def export(change):
                 try:
                     selected: pd.DataFrame = self._df.iloc[self.selected()]
+                    columns = [c for c in selected.columns if selected[c].notna().any()]
+                    # temporary clarity-enhancing hack TODO: remove or refactor
+                    label_index = None
+                    top_words_index = None
+                    text_index = None
+                    date_index = None
+                    for header in columns:
+                        if header == 'label':
+                            label_index = columns.index(header)
+                        elif header == 'top words':
+                            top_words_index = columns.index(header)
+                        elif header == 'text':
+                            text_index = columns.index(header)
+                        elif header == 'date':
+                            date_index = columns.index(header)
+                    if label_index and top_words_index and text_index and date_index:
+                        columns += [columns[label_index], columns[top_words_index], columns[text_index], columns[date_index]]
                     selected.to_csv(
                         csv_file.value,
-                        columns=[
-                            c for c in selected.columns if selected[c].notna().any()
-                        ],
+                        columns=columns,
                         index=False,
                         quoting=csv.QUOTE_ALL,
                         mode="w" if overwrite.value else "x",

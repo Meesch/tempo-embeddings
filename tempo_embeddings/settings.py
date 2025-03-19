@@ -65,7 +65,7 @@ DEVICE: Optional[str] = os.environ.get("DEVICE")
 WEAVIATE_CONFIG_COLLECTION: str = "TempoEmbeddings"
 WEAVIATE_SERVERS = [
     ("UU", ("semantics-of-sustainability.hum.uu.nl", 443, True)),
-    ("Research Cloud", ("145.38.187.187", 8087, False)),
+    ("Research Cloud", ("145.38.192.173", 8087, False)),
     ("local", ("localhost", 8087, False)),
 ]
 """Values provide a tuple (host,port,use SSL)"""
@@ -74,3 +74,9 @@ WEAVIATE_API_KEY: str = os.environ.get("WEAVIATE_API_KEY", None)
 
 STRICT = {"strict": True} if int(platform.python_version_tuple()[1]) >= 10 else {}
 """Optional argument for zip() to enforce strict mode in Python 3.10+."""
+
+DOC_FREQUENCY_CACHE_FILE = os.getenv(
+    "DOC_FREQUENCY_CACHE", str(DATA_DIR / "doc_frequency_cache")
+)
+TTL_CACHE = 60 * 60 * 24 * 7 * 30  # 1 month
+"""Time-to-live for the doc frequency cache in seconds."""

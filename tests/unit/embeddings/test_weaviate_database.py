@@ -12,6 +12,8 @@ import weaviate
 from tempo_embeddings.embeddings.weaviate_database import QueryBuilder, WeaviateConfigDb
 from tempo_embeddings.settings import STRICT
 from tempo_embeddings.text.corpus import Corpus
+from tempo_embeddings.text.highlighting import Highlighting
+from tempo_embeddings.text.passage import Passage
 from tempo_embeddings.text.year_span import YearSpan
 from weaviate.classes.query import Filter
 from weaviate.exceptions import WeaviateStartUpError
@@ -102,6 +104,41 @@ class TestWeaviateDatabase:
                 "collection": "TestCorpus",
             }
 
+    @pytest.mark.parametrize(
+        "passages_text,filter_duplicates,expected_results",
+        [
+            ("test text ", True, 5),
+            ("test text ", False, 10),
+            ("new text ", True, 10),
+            ("new text ", False, 10),
+        ],
+    )
+    def test_get_corpus_duplicates(
+        self,
+        weaviate_db_manager_with_data,
+        passages_text,
+        filter_duplicates,
+        expected_results,
+        caplog,
+    ):
+        passages = [
+            Passage(passages_text + str(i), highlighting=Highlighting(2, 4))
+            for i in range(TEST_CORPUS_SIZE)
+        ]
+        weaviate_db_manager_with_data.ingest(Corpus(passages, label="TestCorpus"))
+
+        with caplog.at_level(logging.INFO):
+            corpus = weaviate_db_manager_with_data.get_corpus(
+                "TestCorpus", filter_duplicates=filter_duplicates
+            )
+            assert (
+                not filter_duplicates
+                or f"Found {expected_results} unique passages in 10 objects for collection 'TestCorpus'."
+                in caplog.messages
+            )
+
+        assert len(corpus.passages) == expected_results
+
     def test_get_corpus_exception(self, weaviate_db_manager_with_data, mocker):
         mocker.patch(
             "weaviate.collections.queries.fetch_objects._FetchObjectsQuery.fetch_objects",
@@ -133,6 +170,38 @@ class TestWeaviateDatabase:
             )
         assert doc_freq == expected
         assert not caplog.record_tuples
+
+    @pytest.mark.parametrize(
+        "term, metadata, normalize, start_year, end_year,expected",
+        [
+            ("test", None, False, 1950, 1955, {year: 1 for year in range(1950, 1955)}),
+            ("test", None, True, 1950, 1955, {year: 1 for year in range(1950, 1955)}),
+            ("unk", None, True, 1950, 1955, {year: 0 for year in range(1950, 1955)}),
+            ("unk", None, False, 1950, 1955, {year: 0 for year in range(1950, 1955)}),
+        ],
+    )
+    def test_doc_frequencies_per_year(
+        self,
+        weaviate_db_manager_with_data,
+        term,
+        metadata,
+        normalize,
+        start_year,
+        end_year,
+        expected,
+    ):
+        # FIXME: the test data only has one passage per year, so the result is always 0 or 1
+        assert (
+            weaviate_db_manager_with_data.doc_frequencies_per_year(
+                term,
+                "TestCorpus",
+                start_year,
+                end_year,
+                metadata=metadata,
+                normalize=normalize,
+            )
+            == expected
+        )
 
     @pytest.mark.parametrize("k", [0, 1, 2, 3, 4, 5, 10])
     def test_neighbours(self, weaviate_db_manager_with_data, corpus, k):
